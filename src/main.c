@@ -4,11 +4,12 @@
 #include<stdlib.h>
 
 #define MAX_LASERS 30
-#define SCREENWIDTH 1200
-#define SCREENHEIGHT 800
-#define SCREENCINNAMONBORDER 75
-#define ENEMYFALLVELOCITY 2
-#define ENEMYZIGZAG 50
+#define SCREEN_WIDTH 1200
+#define SCREEN_HEIGHT 800
+#define SCREEN_CINNAMON_BORDER 75
+#define ENEMY_FALL_VELOCITY 2
+#define ENEMY_ZIGZAG 50
+#define MAX_ENEMIES 5
 
 #define DEFINE_ARRAY_STRUCT(Type, MaxSize)                  \
     typedef struct Type##Array {                            \
@@ -16,25 +17,21 @@
         size_t size;                                        \
     } Type##Array;
 
+
 typedef struct Player
 {
     Vector2 pos;
     Vector2 vel;
-}Player;
+} Player;
 
-typedef struct LaserArray
-{
-    Vector2 lasers[MAX_LASERS];
-    size_t size;
-}LaserArray;
+typedef Vector2 Laser;
+DEFINE_ARRAY_STRUCT(Laser, MAX_LASERS)
 
 typedef struct Enemy
 {
     Vector2 pos;
     Vector2 new_pos;
-}Enemy;
-
-#define MAX_ENEMIES 5
+} Enemy;
 DEFINE_ARRAY_STRUCT(Enemy, MAX_ENEMIES)
 
 Enemy
@@ -47,9 +44,12 @@ enemyCreate(Vector2 pos)
 }
 
 void
-enemyDraw(Enemy* enemy, Texture2D* textures)
+enemiesDraw(EnemyArray* enemyarr, Texture2D* textures)
 {
-    DrawTexture(textures[1], enemy->pos.x, enemy->pos.y, WHITE);
+    for(size_t i = 0; i < enemyarr->size; i++)
+    {
+        DrawTexture(textures[1], enemyarr->elements[i].pos.x, enemyarr->elements[i].pos.y, WHITE);
+    }
 }
 
 Player
@@ -68,68 +68,70 @@ playerDraw(Player* player, Texture2D* textures)
 }
 
 void
-loadSprites(Texture2D* textures){
+loadTextures(Texture2D* textures)
+{
     Image image = LoadImage("sprites/ship.png");
     if (image.data == NULL) {
         printf("Error: Unable to load player sprite.\n");
         return;
     }
 
-    ImageResize(&image, 100,100);
+    ImageResize(&image, 100, 100);
     textures[0] = LoadTextureFromImage(image);
 
     image = LoadImage("sprites/enemy.png");
     if (image.data == NULL) {
-        printf("Error: Unable to load player sprite.\n");
+        printf("Error: Unable to load enemy sprite.\n");
         return;
     }
 
-    ImageResize(&image, 86,66);
+    ImageResize(&image, 80, 60);
     textures[1] = LoadTextureFromImage(image);
 
     UnloadImage(image);
 }
 
 void
-enemyUpdate(Enemy* enemy)
+enemiesUpdate(EnemyArray* enemyarr)
 {
-    // printf("pos: %f newPos: %f\n", enemy->pos.x, enemy->new_pos.x);
-
-    if(enemy->pos.x == enemy->new_pos.x)
+    for(size_t i = 0; i < enemyarr->size; i++)
     {
-        int r = rand();
-        if(r%2 == 0)
+
+        if (enemyarr->elements[i].pos.x == enemyarr->elements[i].new_pos.x)
         {
-            if(enemy->pos.x < SCREENWIDTH - SCREENCINNAMONBORDER - ENEMYZIGZAG)
+            int r = rand();
+            if (r % 2 == 0)
             {
-                enemy->new_pos.x = enemy->pos.x + ENEMYZIGZAG;
+                if (enemyarr->elements[i].pos.x < SCREEN_WIDTH - SCREEN_CINNAMON_BORDER - ENEMY_ZIGZAG)
+                {
+                    enemyarr->elements[i].new_pos.x = enemyarr->elements[i].pos.x + ENEMY_ZIGZAG;
+                }
+            }
+            else
+            {
+                if (enemyarr->elements[i].pos.x > ENEMY_ZIGZAG)
+                {
+                    enemyarr->elements[i].new_pos.x = enemyarr->elements[i].pos.x - ENEMY_ZIGZAG;
+                }
             }
         }
         else
         {
-            if(enemy->pos.x > ENEMYZIGZAG)
+            if (enemyarr->elements[i].new_pos.x < enemyarr->elements[i].pos.x)
             {
-                enemy->new_pos.x = enemy->pos.x + -ENEMYZIGZAG;
+                enemyarr->elements[i].pos.x -= ENEMY_ZIGZAG / 10;
+            }
+            else
+            {
+                enemyarr->elements[i].pos.x += ENEMY_ZIGZAG / 10;
             }
         }
-    }
-    else
-    {
-        if(enemy->new_pos.x < enemy->pos.x)
+
+        if (enemyarr->elements[i].pos.y < 725 - ENEMY_FALL_VELOCITY)
         {
-            enemy->pos.x += -ENEMYZIGZAG/10;
-        }
-        else
-        {
-            enemy->pos.x += ENEMYZIGZAG/10;
+            enemyarr->elements[i].pos.y += ENEMY_FALL_VELOCITY;
         }
     }
-
-    if(enemy->pos.y < 725 - ENEMYFALLVELOCITY) // Minus velocity, because we are not checking the new_position
-    {
-        enemy->pos.y += ENEMYFALLVELOCITY;
-    }
-
 }
 
 void
@@ -138,11 +140,11 @@ playerUpdate(Player* player)
     float new_x = player->pos.x + player->vel.x;
     float new_y = player->pos.y + player->vel.y;
 
-    if(new_x > 0 && new_x < SCREENWIDTH - SCREENCINNAMONBORDER)
+    if (new_x > 0 && new_x < SCREEN_WIDTH - SCREEN_CINNAMON_BORDER)
     {
         player->pos.x += player->vel.x;
     }
-    if(new_y > 0 && new_y < SCREENHEIGHT - SCREENCINNAMONBORDER)
+    if (new_y > 0 && new_y < SCREEN_HEIGHT - SCREEN_CINNAMON_BORDER)
     {
         player->pos.y += player->vel.y;
     }
@@ -153,20 +155,20 @@ playerUpdate(Player* player)
 void
 laserCreate(Player* player, LaserArray* laserarr)
 {
-    Vector2 laser = {player->pos.x + 49, player->pos.y};
-    laserarr->lasers[laserarr->size] = laser;
+    Laser laser = {player->pos.x + 49, player->pos.y};
+    laserarr->elements[laserarr->size] = laser;
     laserarr->size++;
 }
 
 void
 laserUpdate(LaserArray* laserarr)
 {
-    for (size_t i = 0; i < laserarr->size; )
+    for (size_t i = 0; i < laserarr->size;)
     {
-        laserarr->lasers[i].y += -5;
-        if (laserarr->lasers[i].y < 0)
+        laserarr->elements[i].y -= 5;
+        if (laserarr->elements[i].y < 0)
         {
-            laserarr->lasers[i] = laserarr->lasers[laserarr->size - 1];
+            laserarr->elements[i] = laserarr->elements[laserarr->size - 1];
             laserarr->size--;
         }
         else
@@ -177,13 +179,29 @@ laserUpdate(LaserArray* laserarr)
 }
 
 void
-laserCollide(LaserArray* laserarr, Enemy* enemyarr)
+laserCollide(LaserArray* laserarr, EnemyArray* enemyarr)
 {
     for (size_t i = 0; i < laserarr->size;)
     {
+        bool laser_collided = false;
+        for (size_t j = 0; j < enemyarr->size;)
+        {
+            Rectangle rec_laser = {laserarr->elements[i].x, laserarr->elements[i].y - 15, 5, 15};
+            Rectangle rec_enemy = {enemyarr->elements[j].pos.x, enemyarr->elements[j].pos.y, 80, 60};
+            // DrawRectangleRec(rec_enemy, RED);
+            if(CheckCollisionRecs(rec_laser, rec_enemy))
+            {
+                laserarr->elements[i] = laserarr->elements[laserarr->size -1];
+                laserarr->size--;
 
-        // if (laserarr->lasers[i]){}
+                enemyarr->elements[j] = enemyarr->elements[enemyarr->size -1];
+                enemyarr->size--;
 
+                laser_collided = true;
+            }
+            else{j++;}
+        }
+        if(!laser_collided){i++;}
     }
 }
 
@@ -192,54 +210,63 @@ laserDraw(LaserArray* laserarr)
 {
     for (size_t i = 0; i < laserarr->size; i++)
     {
-        Vector2 end_line = {laserarr->lasers[i].x, laserarr->lasers[i].y - 15};
-        DrawLineV(laserarr->lasers[i], end_line, RED);
+        Vector2 end_line = {laserarr->elements[i].x, laserarr->elements[i].y - 15};
+        DrawLineV(laserarr->elements[i], end_line, RED);
     }
 }
 
 int main()
 {
-    InitWindow(SCREENWIDTH, SCREENHEIGHT, "Raylib");
+    InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Raylib");
     SetTargetFPS(60);
 
     srand(time(NULL));
 
     Texture2D textures[2];
+
     LaserArray laserarr;
     laserarr.size = 0;
 
+    EnemyArray enemyarr;
+    enemyarr.size = 0;
+
     Camera2D camera;
-    camera.target = (Vector2){ SCREENWIDTH/2.0f, SCREENHEIGHT/2.0f };
-    camera.offset = (Vector2){ SCREENWIDTH/2.0f, SCREENHEIGHT/2.0f };
+    camera.target = (Vector2){SCREEN_WIDTH / 2.0f, SCREEN_HEIGHT / 2.0f};
+    camera.offset = (Vector2){SCREEN_WIDTH / 2.0f, SCREEN_HEIGHT / 2.0f};
     camera.rotation = 0.0f;
     camera.zoom = 1.0f;
 
-    Player player = playerCreate((Vector2){220,220}, (Vector2){0,0});
-    Enemy enemy = enemyCreate((Vector2){200,100});
+    Player player = playerCreate((Vector2){220, 220}, (Vector2){0, 0});
 
-    loadSprites(textures);
+    for(size_t i = 0; i < 5; i++)
+    {
+        Enemy enemy = enemyCreate((Vector2){i * 100, 0});
+        enemyarr.elements[i] = enemy;
+        enemyarr.size++;
+    }
+
+    loadTextures(textures);
 
     while (!WindowShouldClose())
     {
         // Input
-
-        if(IsKeyDown(KEY_D))
+        if (IsKeyDown(KEY_D))
         {
             player.vel.x = 5;
         }
-        if(IsKeyDown(KEY_S))
+        if (IsKeyDown(KEY_S))
         {
             player.vel.y = 5;
         }
-        if(IsKeyDown(KEY_W))
+        if (IsKeyDown(KEY_W))
         {
             player.vel.y = -5;
         }
-        if(IsKeyDown(KEY_A))
+        if (IsKeyDown(KEY_A))
         {
             player.vel.x = -5;
         }
-        if(IsKeyPressed(KEY_SPACE))
+        if (IsKeyPressed(KEY_SPACE))
         {
             laserCreate(&player, &laserarr);
         }
@@ -248,18 +275,18 @@ int main()
 
         playerUpdate(&player);
         laserUpdate(&laserarr);
-        enemyUpdate(&enemy);
+        enemiesUpdate(&enemyarr);
+        laserCollide(&laserarr, &enemyarr);
 
         // Render
-
         BeginDrawing();
             ClearBackground(BLACK);
-            DrawFPS(10,10);
+            DrawFPS(10, 10);
             BeginMode2D(camera);
 
                 playerDraw(&player, textures);
                 laserDraw(&laserarr);
-                enemyDraw(&enemy, textures);
+                enemiesDraw(&enemyarr, textures);
 
                 // char position[40];
                 // sprintf(position, "X: %f Y: %f\n", player.pos.x, player.pos.y);
@@ -271,8 +298,5 @@ int main()
     }
 
     CloseWindow();
-
-
-
     return 0;
 }
